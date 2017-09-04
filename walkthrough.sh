@@ -13,22 +13,31 @@ TMP_DIR="/tmp/t2t_datagen"
 
 mkdir -p "${DATA_DIR}" "${TMP_DIR}" "${TRAIN_DIR}"
 
-# Generate data
+# ===============================================
+# Generate Data.
+# ===============================================
 t2t-datagen \
   --data_dir="${DATA_DIR}" \
   --tmp_dir="${TMP_DIR}" \
   --problem="${PROBLEM}"
 
-# Train
-# *  If you run out of memory, add --hparams='batch_size=1024'.
+
+# ===============================================
+# Train.
+# If run out of memory, add --hparams='batch_size=1024'.
+# ===============================================
 t2t-trainer \
   --data_dir="${DATA_DIR}" \
   --problems="${PROBLEM}" \
   --model="${MODEL}" \
   --hparams_set="${HPARAMS}" \
+  --hparams="batch_size=1024" \
   --output_dir="${TRAIN_DIR}"
 
-# Decode
+
+# ===============================================
+# Decode.
+# ===============================================
 DECODE_FILE="$DATA_DIR/decode_this.txt"
 BEAM_SIZE=4
 ALPHA=0.6

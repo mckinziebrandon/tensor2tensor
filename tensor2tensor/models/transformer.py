@@ -39,7 +39,7 @@ import tensorflow as tf
 
 EncoderState = namedtuple(
     'EncoderState',
-    ['input', 'self_attn_bias', 'decoder_attn_bias'])
+    ['input', 'self_attn_bias', 'decoder_attn_bias', 'output'])
 DecoderState = namedtuple(
     'DecoderState',
     ['input', 'self_attn_bias'])
@@ -85,14 +85,10 @@ class Transformer(t2t_model.T2TModel):
 
         encoder = transformer_prepare_encoder(
             inputs, features['target_space_id'], hparams)
+        encoder = transformer_encoder(encoder, hparams)
+
         decoder = transformer_prepare_decoder(targets, hparams)
-        encoder_input = with_dropout(encoder.input, hparams)
-        decoder_input = with_dropout(decoder.input, hparams)
-        encoder_output = transformer_encoder(
-            encoder_input, encoder.self_attn_bias, hparams)
-        decoder_output = transformer_decoder(
-            decoder_input, encoder_output, decoder.self_attn_bias,
-            encoder.decoder_attn_bias, hparams)
+        decoder_output = transformer_decoder(decoder, encoder, hparams)
         decoder_output = tf.expand_dims(decoder_output, 2)
 
         return decoder_output
@@ -107,10 +103,8 @@ class TransformerEncoder(t2t_model.T2TModel):
         inputs = common_layers.flatten4d3d(features['inputs'])
         encoder = transformer_prepare_encoder(
             inputs, features['target_space_id'], hparams)
-        encoder_input = with_dropout(encoder.input, hparams)
-        encoder_output = transformer_encoder(
-            encoder_input, encoder.self_attn_bias, hparams)
-        return encoder_output
+        encoder = transformer_encoder(encoder, hparams)
+        return encoder.output
 
 
 @registry.register_model
@@ -121,9 +115,7 @@ class TransformerDecoder(t2t_model.T2TModel):
         hparams = self._hparams
         targets = common_layers.flatten4d3d(features['targets'])
         decoder = transformer_prepare_decoder(targets, hparams)
-        decoder_input = with_dropout(decoder.input, hparams)
-        decoder_output = transformer_decoder(
-            decoder_input, None, decoder.self_attn_bias, None, hparams)
+        decoder_output = transformer_decoder(decoder, None, hparams)
         decoder_output = tf.expand_dims(decoder_output, 2)
         return decoder_output
 
@@ -163,11 +155,14 @@ def transformer_prepare_encoder(inputs, target_space, hparams):
     encoder_input = inputs + emb_target_space
     if hparams.pos == 'timing':
         encoder_input = comm_attn.add_timing_signal_1d(encoder_input)
+    # Putting this here since always called immediately after...
+    encoder_input = with_dropout(encoder_input, hparams)
 
     return EncoderState(
         input=encoder_input,
         self_attn_bias=encoder_self_attention_bias,
-        decoder_attn_bias=ignore_padding)
+        decoder_attn_bias=ignore_padding,
+        output=None)
 
 
 def transformer_prepare_decoder(targets, hparams):
@@ -189,13 +184,15 @@ def transformer_prepare_decoder(targets, hparams):
     decoder_input = common_layers.shift_left_3d(targets)
     if hparams.pos == 'timing':
         decoder_input = comm_attn.add_timing_signal_1d(decoder_input)
+    # Putting this here since always called immediately after...
+    decoder_input = with_dropout(decoder_input, hparams)
+
     return DecoderState(
         input=decoder_input,
         self_attn_bias=decoder_self_attention_bias)
 
 
-def transformer_encoder(encoder_input,
-                        encoder_self_attention_bias,
+def transformer_encoder(encoder_state,
                         hparams,
                         name='encoder'):
     """A stack of transformer layers.
@@ -210,24 +207,27 @@ def transformer_encoder(encoder_input,
     Returns:
       y: a Tensors
     """
-    x = encoder_input
+    x = encoder_state.input
+    total_key_depth = hparams.attention_key_channels or hparams.hidden_size
+    total_value_depth = hparams.attention_value_channels or hparams.hidden_size
     with tf.variable_scope(name):
         for layer in xrange(hparams.num_encoder_layers):
             with tf.variable_scope('layer_%d' % layer):
 
+                # Multi-Head Attention Layer.
                 with tf.variable_scope('self_attention'):
                     y = comm_attn.multihead_attention(
-                        common_layers.layer_preprocess(x, hparams),
-                        None,
-                        encoder_self_attention_bias,
-                        hparams.attention_key_channels or hparams.hidden_size,
-                        hparams.attention_value_channels or hparams.hidden_size,
-                        hparams.hidden_size,
-                        hparams.num_heads,
-                        hparams.attention_dropout)
-
+                        query_antecedent=common_layers.layer_preprocess(x, hparams),
+                        memory_antecedent=None,
+                        bias=encoder_state.self_attn_bias,
+                        total_key_depth=total_key_depth,
+                        total_value_depth=total_value_depth,
+                        output_depth=hparams.hidden_size,
+                        num_heads=hparams.num_heads,
+                        dropout_rate=hparams.attention_dropout)
                     x = common_layers.layer_postprocess(x, y, hparams)
 
+                # Feed-Forward Network Layer.
                 with tf.variable_scope('ffn'):
                     y = transformer_ffn_layer(
                         common_layers.layer_preprocess(x, hparams), hparams)
@@ -236,13 +236,16 @@ def transformer_encoder(encoder_input,
     # if normalization is done in layer_preprocess, then it shuold also be done
     # on the output, since the output can grow very large, being the sum of
     # a whole stack of unnormalized layer outputs.
-    return common_layers.layer_preprocess(x, hparams)
+    encoder_output = common_layers.layer_preprocess(x, hparams)
+    return EncoderState(
+        input=encoder_state.input,
+        self_attn_bias=encoder_state.self_attn_bias,
+        decoder_attn_bias=encoder_state.decoder_attn_bias,
+        output=encoder_output)
 
 
-def transformer_decoder(decoder_input,
-                        encoder_output,
-                        decoder_self_attention_bias,
-                        encoder_decoder_attention_bias,
+def transformer_decoder(decoder_state,
+                        encoder_state,
                         hparams,
                         name='decoder'):
     """A stack of transformer layers.
@@ -260,25 +263,26 @@ def transformer_decoder(decoder_input,
     Returns:
       y: a Tensors
     """
-    x = decoder_input
+    x = decoder_state.input
     with tf.variable_scope(name):
         for layer in xrange(hparams.num_decoder_layers):
             with tf.variable_scope('layer_%d' % layer):
                 with tf.variable_scope('self_attention'):
                     y = comm_attn.multihead_attention(
                         common_layers.layer_preprocess(
-                            x, hparams), None, decoder_self_attention_bias,
+                            x, hparams), None, decoder_state.self_attn_bias,
                         hparams.attention_key_channels or hparams.hidden_size,
                         hparams.attention_value_channels or hparams.hidden_size,
                         hparams.hidden_size, hparams.num_heads,
                         hparams.attention_dropout)
                     x = common_layers.layer_postprocess(x, y, hparams)
-                if encoder_output is not None:
+
+                if encoder_state.output is not None:
                     with tf.variable_scope('encdec_attention'):
                         y = comm_attn.multihead_attention(
                             common_layers.layer_preprocess(
-                                x, hparams), encoder_output,
-                            encoder_decoder_attention_bias,
+                                x, hparams), encoder_state.output,
+                            encoder_state.decoder_attn_bias,
                             hparams.attention_key_channels or hparams.hidden_size,
                             hparams.attention_value_channels or hparams.hidden_size,
                             hparams.hidden_size, hparams.num_heads,
