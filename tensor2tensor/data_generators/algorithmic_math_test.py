@@ -29,57 +29,58 @@ import tensorflow as tf
 
 
 class AlgorithmicMathTest(tf.test.TestCase):
+    def testAlgebraInverse(self):
+        dataset_objects = algorithmic_math.math_dataset_init(26)
+        counter = 0
+        for d in algorithmic_math.algebra_inverse(26, 0, 3, 10):
+            counter += 1
+            decoded_input = dataset_objects.int_decoder(d["inputs"])
+            solve_var, expression = decoded_input.split(":")
+            lhs, rhs = expression.split("=")
 
-  def testAlgebraInverse(self):
-    dataset_objects = algorithmic_math.math_dataset_init(26)
-    counter = 0
-    for d in algorithmic_math.algebra_inverse(26, 0, 3, 10):
-      counter += 1
-      decoded_input = dataset_objects.int_decoder(d["inputs"])
-      solve_var, expression = decoded_input.split(":")
-      lhs, rhs = expression.split("=")
+            # Solve for the solve-var.
+            result = sympy.solve("%s-(%s)" % (lhs, rhs), solve_var)
+            target_expression = dataset_objects.int_decoder(d["targets"])
 
-      # Solve for the solve-var.
-      result = sympy.solve("%s-(%s)" % (lhs, rhs), solve_var)
-      target_expression = dataset_objects.int_decoder(d["targets"])
+            # Check that the target and sympy's solutions are equivalent.
+            self.assertEqual(
+                0, sympy.simplify(str(result[0]) + "-(%s)" % target_expression))
+        self.assertEqual(counter, 10)
 
-      # Check that the target and sympy's solutions are equivalent.
-      self.assertEqual(
-          0, sympy.simplify(str(result[0]) + "-(%s)" % target_expression))
-    self.assertEqual(counter, 10)
+    def testAlgebraSimplify(self):
+        dataset_objects = algorithmic_math.math_dataset_init(8, digits=5)
+        counter = 0
+        for d in algorithmic_math.algebra_simplify(8, 0, 3, 10):
+            counter += 1
+            expression = dataset_objects.int_decoder(d["inputs"])
+            target = dataset_objects.int_decoder(d["targets"])
 
-  def testAlgebraSimplify(self):
-    dataset_objects = algorithmic_math.math_dataset_init(8, digits=5)
-    counter = 0
-    for d in algorithmic_math.algebra_simplify(8, 0, 3, 10):
-      counter += 1
-      expression = dataset_objects.int_decoder(d["inputs"])
-      target = dataset_objects.int_decoder(d["targets"])
+            # Check that the input and output are equivalent expressions.
+            self.assertEqual(0,
+                             sympy.simplify("%s-(%s)" % (expression, target)))
+        self.assertEqual(counter, 10)
 
-      # Check that the input and output are equivalent expressions.
-      self.assertEqual(0, sympy.simplify("%s-(%s)" % (expression, target)))
-    self.assertEqual(counter, 10)
+    def testCalculusIntegrate(self):
+        dataset_objects = algorithmic_math.math_dataset_init(
+            8, digits=5, functions={"log": "L"})
+        counter = 0
+        for d in algorithmic_math.calculus_integrate(8, 0, 3, 10):
+            counter += 1
+            decoded_input = dataset_objects.int_decoder(d["inputs"])
+            var, expression = decoded_input.split(":")
+            target = dataset_objects.int_decoder(d["targets"])
 
-  def testCalculusIntegrate(self):
-    dataset_objects = algorithmic_math.math_dataset_init(
-        8, digits=5, functions={"log": "L"})
-    counter = 0
-    for d in algorithmic_math.calculus_integrate(8, 0, 3, 10):
-      counter += 1
-      decoded_input = dataset_objects.int_decoder(d["inputs"])
-      var, expression = decoded_input.split(":")
-      target = dataset_objects.int_decoder(d["targets"])
+            for fn_name, fn_char in six.iteritems(dataset_objects.functions):
+                target = target.replace(fn_char, fn_name)
 
-      for fn_name, fn_char in six.iteritems(dataset_objects.functions):
-        target = target.replace(fn_char, fn_name)
+            # Take the derivative of the target.
+            derivative = str(sympy.diff(target, var))
 
-      # Take the derivative of the target.
-      derivative = str(sympy.diff(target, var))
-
-      # Check that the derivative of the integral equals the input.
-      self.assertEqual(0, sympy.simplify("%s-(%s)" % (expression, derivative)))
-    self.assertEqual(counter, 10)
+            # Check that the derivative of the integral equals the input.
+            self.assertEqual(0, sympy.simplify(
+                "%s-(%s)" % (expression, derivative)))
+        self.assertEqual(counter, 10)
 
 
 if __name__ == "__main__":
-  tf.test.main()
+    tf.test.main()

@@ -27,246 +27,227 @@ from tensor2tensor.utils import t2t_model
 
 import tensorflow as tf
 
+
 # pylint: disable=unused-variable
 
 
 class ModelRegistryTest(tf.test.TestCase):
+    def setUp(self):
+        registry._reset()
 
-  def setUp(self):
-    registry._reset()
+    def testT2TModelRegistration(self):
+        @registry.register_model
+        class MyModel1(t2t_model.T2TModel):
+            pass
 
-  def testT2TModelRegistration(self):
+        model = registry.model("my_model1")
+        self.assertTrue(model is MyModel1)
 
-    @registry.register_model
-    class MyModel1(t2t_model.T2TModel):
-      pass
+    def testNamedRegistration(self):
+        @registry.register_model("model2")
+        class MyModel1(t2t_model.T2TModel):
+            pass
 
-    model = registry.model("my_model1")
-    self.assertTrue(model is MyModel1)
+        model = registry.model("model2")
+        self.assertTrue(model is MyModel1)
 
-  def testNamedRegistration(self):
+    def testNonT2TModelRegistration(self):
+        @registry.register_model
+        def model_fn():
+            pass
 
-    @registry.register_model("model2")
-    class MyModel1(t2t_model.T2TModel):
-      pass
+        model = registry.model("model_fn")
+        self.assertTrue(model is model_fn)
 
-    model = registry.model("model2")
-    self.assertTrue(model is MyModel1)
+    def testUnknownModel(self):
+        with self.assertRaisesRegexp(ValueError, "never registered"):
+            registry.model("not_registered")
 
-  def testNonT2TModelRegistration(self):
+    def testDuplicateRegistration(self):
+        @registry.register_model
+        def m1():
+            pass
 
-    @registry.register_model
-    def model_fn():
-      pass
+        with self.assertRaisesRegexp(ValueError, "already registered"):
+            @registry.register_model("m1")
+            def m2():
+                pass
 
-    model = registry.model("model_fn")
-    self.assertTrue(model is model_fn)
+    def testListModels(self):
+        @registry.register_model
+        def m1():
+            pass
 
-  def testUnknownModel(self):
-    with self.assertRaisesRegexp(ValueError, "never registered"):
-      registry.model("not_registered")
+        @registry.register_model
+        def m2():
+            pass
 
-  def testDuplicateRegistration(self):
+        self.assertSetEqual(set(["m1", "m2"]), set(registry.list_models()))
 
-    @registry.register_model
-    def m1():
-      pass
+    def testSnakeCase(self):
+        convert = registry._convert_camel_to_snake
 
-    with self.assertRaisesRegexp(ValueError, "already registered"):
-
-      @registry.register_model("m1")
-      def m2():
-        pass
-
-  def testListModels(self):
-
-    @registry.register_model
-    def m1():
-      pass
-
-    @registry.register_model
-    def m2():
-      pass
-
-    self.assertSetEqual(set(["m1", "m2"]), set(registry.list_models()))
-
-  def testSnakeCase(self):
-    convert = registry._convert_camel_to_snake
-
-    self.assertEqual("typical_camel_case", convert("TypicalCamelCase"))
-    self.assertEqual("numbers_fuse2gether", convert("NumbersFuse2gether"))
-    self.assertEqual("numbers_fuse2_gether", convert("NumbersFuse2Gether"))
-    self.assertEqual("lstm_seq2_seq", convert("LSTMSeq2Seq"))
-    self.assertEqual("starts_lower", convert("startsLower"))
-    self.assertEqual("starts_lower_caps", convert("startsLowerCAPS"))
-    self.assertEqual("caps_fuse_together", convert("CapsFUSETogether"))
-    self.assertEqual("startscap", convert("Startscap"))
-    self.assertEqual("s_tartscap", convert("STartscap"))
+        self.assertEqual("typical_camel_case", convert("TypicalCamelCase"))
+        self.assertEqual("numbers_fuse2gether", convert("NumbersFuse2gether"))
+        self.assertEqual("numbers_fuse2_gether", convert("NumbersFuse2Gether"))
+        self.assertEqual("lstm_seq2_seq", convert("LSTMSeq2Seq"))
+        self.assertEqual("starts_lower", convert("startsLower"))
+        self.assertEqual("starts_lower_caps", convert("startsLowerCAPS"))
+        self.assertEqual("caps_fuse_together", convert("CapsFUSETogether"))
+        self.assertEqual("startscap", convert("Startscap"))
+        self.assertEqual("s_tartscap", convert("STartscap"))
 
 
 class HParamRegistryTest(tf.test.TestCase):
+    def setUp(self):
+        registry._reset()
 
-  def setUp(self):
-    registry._reset()
+    def testHParamSet(self):
+        @registry.register_hparams
+        def my_hparams_set():
+            pass
 
-  def testHParamSet(self):
+        @registry.register_ranged_hparams
+        def my_hparams_range(_):
+            pass
 
-    @registry.register_hparams
-    def my_hparams_set():
-      pass
+        self.assertTrue(registry.hparams("my_hparams_set") is my_hparams_set)
+        self.assertTrue(
+            registry.ranged_hparams("my_hparams_range") is my_hparams_range)
 
-    @registry.register_ranged_hparams
-    def my_hparams_range(_):
-      pass
+    def testNamedRegistration(self):
+        @registry.register_hparams("a")
+        def my_hparams_set():
+            pass
 
-    self.assertTrue(registry.hparams("my_hparams_set") is my_hparams_set)
-    self.assertTrue(
-        registry.ranged_hparams("my_hparams_range") is my_hparams_range)
+        @registry.register_ranged_hparams("a")
+        def my_hparams_range(_):
+            pass
 
-  def testNamedRegistration(self):
+        self.assertTrue(registry.hparams("a") is my_hparams_set)
+        self.assertTrue(registry.ranged_hparams("a") is my_hparams_range)
 
-    @registry.register_hparams("a")
-    def my_hparams_set():
-      pass
+    def testUnknownHparams(self):
+        with self.assertRaisesRegexp(ValueError, "never registered"):
+            registry.hparams("not_registered")
+        with self.assertRaisesRegexp(ValueError, "never registered"):
+            registry.ranged_hparams("not_registered")
 
-    @registry.register_ranged_hparams("a")
-    def my_hparams_range(_):
-      pass
+    def testDuplicateRegistration(self):
+        @registry.register_hparams
+        def hp1():
+            pass
 
-    self.assertTrue(registry.hparams("a") is my_hparams_set)
-    self.assertTrue(registry.ranged_hparams("a") is my_hparams_range)
+        with self.assertRaisesRegexp(ValueError, "already registered"):
+            @registry.register_hparams("hp1")
+            def hp2():
+                pass
 
-  def testUnknownHparams(self):
-    with self.assertRaisesRegexp(ValueError, "never registered"):
-      registry.hparams("not_registered")
-    with self.assertRaisesRegexp(ValueError, "never registered"):
-      registry.ranged_hparams("not_registered")
+        @registry.register_ranged_hparams
+        def rhp1(_):
+            pass
 
-  def testDuplicateRegistration(self):
+        with self.assertRaisesRegexp(ValueError, "already registered"):
+            @registry.register_ranged_hparams("rhp1")
+            def rhp2(_):
+                pass
 
-    @registry.register_hparams
-    def hp1():
-      pass
+    def testListHparams(self):
+        @registry.register_hparams
+        def hp1():
+            pass
 
-    with self.assertRaisesRegexp(ValueError, "already registered"):
+        @registry.register_hparams("hp2_named")
+        def hp2():
+            pass
 
-      @registry.register_hparams("hp1")
-      def hp2():
-        pass
+        @registry.register_ranged_hparams
+        def rhp1(_):
+            pass
 
-    @registry.register_ranged_hparams
-    def rhp1(_):
-      pass
+        @registry.register_ranged_hparams("rhp2_named")
+        def rhp2(_):
+            pass
 
-    with self.assertRaisesRegexp(ValueError, "already registered"):
+        self.assertSetEqual(set(["hp1", "hp2_named"]),
+                            set(registry.list_hparams()))
+        self.assertSetEqual(
+            set(["rhp1", "rhp2_named"]), set(registry.list_ranged_hparams()))
 
-      @registry.register_ranged_hparams("rhp1")
-      def rhp2(_):
-        pass
+    def testRangeSignatureCheck(self):
+        with self.assertRaisesRegexp(ValueError, "must take a single argument"):
+            @registry.register_ranged_hparams
+            def rhp_bad():
+                pass
 
-  def testListHparams(self):
-
-    @registry.register_hparams
-    def hp1():
-      pass
-
-    @registry.register_hparams("hp2_named")
-    def hp2():
-      pass
-
-    @registry.register_ranged_hparams
-    def rhp1(_):
-      pass
-
-    @registry.register_ranged_hparams("rhp2_named")
-    def rhp2(_):
-      pass
-
-    self.assertSetEqual(set(["hp1", "hp2_named"]), set(registry.list_hparams()))
-    self.assertSetEqual(
-        set(["rhp1", "rhp2_named"]), set(registry.list_ranged_hparams()))
-
-  def testRangeSignatureCheck(self):
-
-    with self.assertRaisesRegexp(ValueError, "must take a single argument"):
-
-      @registry.register_ranged_hparams
-      def rhp_bad():
-        pass
-
-    with self.assertRaisesRegexp(ValueError, "must take a single argument"):
-
-      @registry.register_ranged_hparams
-      def rhp_bad2(a, b):  # pylint: disable=unused-argument
-        pass
+        with self.assertRaisesRegexp(ValueError, "must take a single argument"):
+            @registry.register_ranged_hparams
+            def rhp_bad2(a, b):  # pylint: disable=unused-argument
+                pass
 
 
 class ModalityRegistryTest(tf.test.TestCase):
+    def setUp(self):
+        registry._reset()
 
-  def setUp(self):
-    registry._reset()
+    def testModalityRegistration(self):
+        @registry.register_symbol_modality
+        class MySymbolModality(modality.Modality):
+            pass
 
-  def testModalityRegistration(self):
+        @registry.register_audio_modality
+        class MyAudioModality(modality.Modality):
+            pass
 
-    @registry.register_symbol_modality
-    class MySymbolModality(modality.Modality):
-      pass
+        @registry.register_image_modality
+        class MyImageModality(modality.Modality):
+            pass
 
-    @registry.register_audio_modality
-    class MyAudioModality(modality.Modality):
-      pass
+        @registry.register_class_label_modality
+        class MyClassLabelModality(modality.Modality):
+            pass
 
-    @registry.register_image_modality
-    class MyImageModality(modality.Modality):
-      pass
+        self.assertTrue(
+            registry.symbol_modality("my_symbol_modality") is MySymbolModality)
+        self.assertTrue(
+            registry.audio_modality("my_audio_modality") is MyAudioModality)
+        self.assertTrue(
+            registry.image_modality("my_image_modality") is MyImageModality)
+        self.assertTrue(
+            registry.class_label_modality("my_class_label_modality") is
+            MyClassLabelModality)
 
-    @registry.register_class_label_modality
-    class MyClassLabelModality(modality.Modality):
-      pass
+    def testDefaultNameLookup(self):
+        @registry.register_symbol_modality("default")
+        class MyDefaultModality(modality.Modality):
+            pass
 
-    self.assertTrue(
-        registry.symbol_modality("my_symbol_modality") is MySymbolModality)
-    self.assertTrue(
-        registry.audio_modality("my_audio_modality") is MyAudioModality)
-    self.assertTrue(
-        registry.image_modality("my_image_modality") is MyImageModality)
-    self.assertTrue(
-        registry.class_label_modality("my_class_label_modality") is
-        MyClassLabelModality)
+        self.assertTrue(registry.symbol_modality() is MyDefaultModality)
 
-  def testDefaultNameLookup(self):
+    def testList(self):
+        @registry.register_symbol_modality
+        class MySymbolModality(modality.Modality):
+            pass
 
-    @registry.register_symbol_modality("default")
-    class MyDefaultModality(modality.Modality):
-      pass
+        @registry.register_audio_modality
+        class MyAudioModality(modality.Modality):
+            pass
 
-    self.assertTrue(registry.symbol_modality() is MyDefaultModality)
+        @registry.register_image_modality
+        class MyImageModality(modality.Modality):
+            pass
 
-  def testList(self):
+        @registry.register_class_label_modality
+        class MyClassLabelModality(modality.Modality):
+            pass
 
-    @registry.register_symbol_modality
-    class MySymbolModality(modality.Modality):
-      pass
+        expected = [
+            "symbol:my_symbol_modality", "audio:my_audio_modality",
+            "image:my_image_modality", "class_label:my_class_label_modality"
+        ]
 
-    @registry.register_audio_modality
-    class MyAudioModality(modality.Modality):
-      pass
-
-    @registry.register_image_modality
-    class MyImageModality(modality.Modality):
-      pass
-
-    @registry.register_class_label_modality
-    class MyClassLabelModality(modality.Modality):
-      pass
-
-    expected = [
-        "symbol:my_symbol_modality", "audio:my_audio_modality",
-        "image:my_image_modality", "class_label:my_class_label_modality"
-    ]
-
-    self.assertSetEqual(set(registry.list_modalities()), set(expected))
+        self.assertSetEqual(set(registry.list_modalities()), set(expected))
 
 
 if __name__ == "__main__":
-  tf.test.main()
+    tf.test.main()

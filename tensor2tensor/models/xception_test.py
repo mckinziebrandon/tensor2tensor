@@ -30,27 +30,26 @@ import tensorflow as tf
 
 
 class XceptionTest(tf.test.TestCase):
-
-  def testXception(self):
-    vocab_size = 9
-    x = np.random.random_integers(1, high=vocab_size - 1, size=(3, 5, 1, 1))
-    y = np.random.random_integers(1, high=vocab_size - 1, size=(3, 1, 1, 1))
-    hparams = xception.xception_tiny()
-    p_hparams = problem_hparams.test_problem_hparams(hparams, vocab_size,
-                                                     vocab_size)
-    with self.test_session() as session:
-      features = {
-          "inputs": tf.constant(x, dtype=tf.int32),
-          "targets": tf.constant(y, dtype=tf.int32),
-      }
-      model = xception.Xception(
-          hparams, tf.contrib.learn.ModeKeys.TRAIN, p_hparams)
-      sharded_logits, _ = model.model_fn(features)
-      logits = tf.concat(sharded_logits, 0)
-      session.run(tf.global_variables_initializer())
-      res = session.run(logits)
-    self.assertEqual(res.shape, (3, 5, 1, 1, vocab_size))
+    def testXception(self):
+        vocab_size = 9
+        x = np.random.random_integers(1, high=vocab_size - 1, size=(3, 5, 1, 1))
+        y = np.random.random_integers(1, high=vocab_size - 1, size=(3, 1, 1, 1))
+        hparams = xception.xception_tiny()
+        p_hparams = problem_hparams.test_problem_hparams(hparams, vocab_size,
+                                                         vocab_size)
+        with self.test_session() as session:
+            features = {
+                "inputs": tf.constant(x, dtype=tf.int32),
+                "targets": tf.constant(y, dtype=tf.int32),
+            }
+            model = xception.Xception(
+                hparams, tf.contrib.learn.ModeKeys.TRAIN, p_hparams)
+            sharded_logits, _ = model.model_fn(features)
+            logits = tf.concat(sharded_logits, 0)
+            session.run(tf.global_variables_initializer())
+            res = session.run(logits)
+        self.assertEqual(res.shape, (3, 5, 1, 1, vocab_size))
 
 
 if __name__ == "__main__":
-  tf.test.main()
+    tf.test.main()

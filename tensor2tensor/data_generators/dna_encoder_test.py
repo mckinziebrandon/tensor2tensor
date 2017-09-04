@@ -26,27 +26,26 @@ import tensorflow as tf
 
 
 class DnaEncoderTest(tf.test.TestCase):
+    def test_encode_decode(self):
+        original = 'TTCGCGGNNNAACCCAACGCCATCTATGTANNTTGAGTTGTTGAGTTAAA'
 
-  def test_encode_decode(self):
-    original = 'TTCGCGGNNNAACCCAACGCCATCTATGTANNTTGAGTTGTTGAGTTAAA'
+        # Encoding should be reversible for any reasonable chunk size.
+        for chunk_size in [1, 2, 4, 6, 8]:
+            encoder = dna_encoder.DNAEncoder(chunk_size=chunk_size)
+            encoded = encoder.encode(original)
+            decoded = encoder.decode(encoded)
+            self.assertEqual(original, decoded)
 
-    # Encoding should be reversible for any reasonable chunk size.
-    for chunk_size in [1, 2, 4, 6, 8]:
-      encoder = dna_encoder.DNAEncoder(chunk_size=chunk_size)
-      encoded = encoder.encode(original)
-      decoded = encoder.decode(encoded)
-      self.assertEqual(original, decoded)
+    def test_delimited_dna_encoder(self):
+        original = 'TTCGCGGNNN,AACCCAACGC,CATCTATGTA,NNTTGAGTTG,TTGAGTTAAA'
 
-  def test_delimited_dna_encoder(self):
-    original = 'TTCGCGGNNN,AACCCAACGC,CATCTATGTA,NNTTGAGTTG,TTGAGTTAAA'
-
-    # Encoding should be reversible for any reasonable chunk size.
-    for chunk_size in [1, 2, 4, 6, 8]:
-      encoder = dna_encoder.DelimitedDNAEncoder(chunk_size=chunk_size)
-      encoded = encoder.encode(original)
-      decoded = encoder.decode(encoded)
-      self.assertEqual(original, decoded)
+        # Encoding should be reversible for any reasonable chunk size.
+        for chunk_size in [1, 2, 4, 6, 8]:
+            encoder = dna_encoder.DelimitedDNAEncoder(chunk_size=chunk_size)
+            encoded = encoder.encode(original)
+            decoded = encoder.decode(encoded)
+            self.assertEqual(original, decoded)
 
 
 if __name__ == '__main__':
-  tf.test.main()
+    tf.test.main()

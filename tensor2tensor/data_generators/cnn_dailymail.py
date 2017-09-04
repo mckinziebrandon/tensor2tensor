@@ -32,106 +32,105 @@ from tensor2tensor.utils import registry
 
 import tensorflow as tf
 
-
 # Links to data from http://cs.nyu.edu/~kcho/DMQA/
 _CNN_STORIES_DRIVE_URL = "https://drive.google.com/uc?export=download&id=0BwmD_VLjROrfTHk4NFg2SndKcjQ"
 
 _DAILYMAIL_STORIES_DRIVE_URL = "https://drive.google.com/uc?export=download&id=0BwmD_VLjROrfM1BxdkxVaTY2bWs"
-
 
 # End-of-sentence marker.
 EOS = text_encoder.EOS_ID
 
 
 def _maybe_download_corpora(tmp_dir):
-  """Download corpora if necessary and unzip them.
-
-  Args:
-    tmp_dir: directory containing dataset.
-
-  Returns:
-    filepath of the downloaded corpus file.
-  """
-  cnn_filename = "cnn_stories.tgz"
-  dailymail_filename = "dailymail_stories.tgz"
-  cnn_finalpath = os.path.join(tmp_dir, "cnn/stories/")
-  dailymail_finalpath = os.path.join(tmp_dir, "dailymail/stories/")
-  if not tf.gfile.Exists(cnn_finalpath):
-    cnn_file = generator_utils.maybe_download_from_drive(
-        tmp_dir, cnn_filename, _CNN_STORIES_DRIVE_URL)
-    with tarfile.open(cnn_file, "r:gz") as cnn_tar:
-      cnn_tar.extractall(tmp_dir)
-  if not tf.gfile.Exists(dailymail_finalpath):
-    dailymail_file = generator_utils.maybe_download_from_drive(
-        tmp_dir, dailymail_filename, _CNN_STORIES_DRIVE_URL)
-    with tarfile.open(dailymail_file, "r:gz") as dailymail_tar:
-      dailymail_tar.extractall(tmp_dir)
-  return [cnn_finalpath, dailymail_finalpath]
+    """Download corpora if necessary and unzip them.
+  
+    Args:
+      tmp_dir: directory containing dataset.
+  
+    Returns:
+      filepath of the downloaded corpus file.
+    """
+    cnn_filename = "cnn_stories.tgz"
+    dailymail_filename = "dailymail_stories.tgz"
+    cnn_finalpath = os.path.join(tmp_dir, "cnn/stories/")
+    dailymail_finalpath = os.path.join(tmp_dir, "dailymail/stories/")
+    if not tf.gfile.Exists(cnn_finalpath):
+        cnn_file = generator_utils.maybe_download_from_drive(
+            tmp_dir, cnn_filename, _CNN_STORIES_DRIVE_URL)
+        with tarfile.open(cnn_file, "r:gz") as cnn_tar:
+            cnn_tar.extractall(tmp_dir)
+    if not tf.gfile.Exists(dailymail_finalpath):
+        dailymail_file = generator_utils.maybe_download_from_drive(
+            tmp_dir, dailymail_filename, _CNN_STORIES_DRIVE_URL)
+        with tarfile.open(dailymail_file, "r:gz") as dailymail_tar:
+            dailymail_tar.extractall(tmp_dir)
+    return [cnn_finalpath, dailymail_finalpath]
 
 
 def story_generator(tmp_dir):
-  paths = _maybe_download_corpora(tmp_dir)
-  for path in paths:
-    for story_file in tf.gfile.Glob(path + "*"):
-      story = u""
-      for line in tf.gfile.Open(story_file):
-        line = unicode(line, "utf-8") if six.PY2 else line.decode("utf-8")
-        story += line
-      yield story
+    paths = _maybe_download_corpora(tmp_dir)
+    for path in paths:
+        for story_file in tf.gfile.Glob(path + "*"):
+            story = u""
+            for line in tf.gfile.Open(story_file):
+                line = unicode(line, "utf-8") if six.PY2 else line.decode(
+                    "utf-8")
+                story += line
+            yield story
 
 
 def _story_summary_split(story):
-  end_pos = story.find("\n\n")  # Upto first empty line.
-  assert end_pos != -1
-  return story[:end_pos], story[end_pos:].strip()
+    end_pos = story.find("\n\n")  # Upto first empty line.
+    assert end_pos != -1
+    return story[:end_pos], story[end_pos:].strip()
 
 
 @registry.register_problem
 class SummarizeCnnDailymail32k(problem.Text2TextProblem):
-  """Summarize CNN and Daily Mail articles to their first paragraph."""
+    """Summarize CNN and Daily Mail articles to their first paragraph."""
 
-  @property
-  def is_character_level(self):
-    return False
+    @property
+    def is_character_level(self):
+        return False
 
-  @property
-  def has_inputs(self):
-    return True
+    @property
+    def has_inputs(self):
+        return True
 
-  @property
-  def input_space_id(self):
-    return problem.SpaceID.EN_TOK
+    @property
+    def input_space_id(self):
+        return problem.SpaceID.EN_TOK
 
-  @property
-  def target_space_id(self):
-    return problem.SpaceID.EN_TOK
+    @property
+    def target_space_id(self):
+        return problem.SpaceID.EN_TOK
 
-  @property
-  def num_shards(self):
-    return 100
+    @property
+    def num_shards(self):
+        return 100
 
-  @property
-  def vocab_name(self):
-    return "vocab.cnndailymail"
+    @property
+    def vocab_name(self):
+        return "vocab.cnndailymail"
 
-  @property
-  def use_subword_tokenizer(self):
-    return True
+    @property
+    def use_subword_tokenizer(self):
+        return True
 
-  @property
-  def targeted_vocab_size(self):
-    return 2**15  # 32768
+    @property
+    def targeted_vocab_size(self):
+        return 2 ** 15  # 32768
 
-  @property
-  def use_train_shards_for_dev(self):
-    return True
+    @property
+    def use_train_shards_for_dev(self):
+        return True
 
-  def generator(self, data_dir, tmp_dir, _):
-    encoder = generator_utils.get_or_generate_vocab_inner(
-        data_dir, self.vocab_file, self.targeted_vocab_size,
-        lambda: story_generator(tmp_dir))
-    for story in story_generator(tmp_dir):
-      summary, rest = _story_summary_split(story)
-      encoded_summary = encoder.encode(summary) + [EOS]
-      encoded_story = encoder.encode(rest) + [EOS]
-      yield {"inputs": encoded_story, "targets": encoded_summary}
+    def generator(self, data_dir, tmp_dir, _):
+        encoder = generator_utils.get_or_generate_vocab_inner(
+            data_dir, self.vocab_file, self.targeted_vocab_size,
+            lambda: story_generator(tmp_dir))
+        for story in story_generator(tmp_dir):
+            summary, rest = _story_summary_split(story)
+            encoded_summary = encoder.encode(summary) + [EOS]
+            encoded_story = encoder.encode(rest) + [EOS]
+            yield {"inputs": encoded_story, "targets": encoded_summary}

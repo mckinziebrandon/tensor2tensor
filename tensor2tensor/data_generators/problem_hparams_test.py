@@ -26,25 +26,28 @@ import tensorflow as tf
 
 
 class ProblemHparamsTest(tf.test.TestCase):
-
-  def testParseProblemName(self):
-    problem_name = "base"
-    self.assertEqual(
-        problem_hparams.parse_problem_name(problem_name), ("base", False,
-                                                           False))
-    problem_name = "base_rev"
-    self.assertEqual(
-        problem_hparams.parse_problem_name(problem_name), ("base", True, False))
-    problem_name = "base_copy"
-    self.assertEqual(
-        problem_hparams.parse_problem_name(problem_name), ("base", False, True))
-    problem_name = "base_copy_rev"
-    self.assertEqual(
-        problem_hparams.parse_problem_name(problem_name), ("base", True, True))
-    problem_name = "base_rev_copy"
-    self.assertEqual(
-        problem_hparams.parse_problem_name(problem_name), ("base", True, True))
+    def testParseProblemName(self):
+        problem_name = "base"
+        self.assertEqual(
+            problem_hparams.parse_problem_name(problem_name), ("base", False,
+                                                               False))
+        problem_name = "base_rev"
+        self.assertEqual(
+            problem_hparams.parse_problem_name(problem_name),
+            ("base", True, False))
+        problem_name = "base_copy"
+        self.assertEqual(
+            problem_hparams.parse_problem_name(problem_name),
+            ("base", False, True))
+        problem_name = "base_copy_rev"
+        self.assertEqual(
+            problem_hparams.parse_problem_name(problem_name),
+            ("base", True, True))
+        problem_name = "base_rev_copy"
+        self.assertEqual(
+            problem_hparams.parse_problem_name(problem_name),
+            ("base", True, True))
 
 
 if __name__ == "__main__":
-  tf.test.main()
+    tf.test.main()

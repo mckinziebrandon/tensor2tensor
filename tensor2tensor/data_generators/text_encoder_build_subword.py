@@ -44,7 +44,7 @@ tf.flags.DEFINE_string('output_filename', '/tmp/my.subword_text_encoder',
 tf.flags.DEFINE_string('corpus_filepattern', '',
                        'Corpus of one or more text files')
 tf.flags.DEFINE_string('vocab_filepattern', '', 'One or more vocabulary files '
-                       '(one word per line as "word,count")')
+                                                '(one word per line as "word,count")')
 tf.flags.DEFINE_integer('min_count', 5, 'Minimum subtoken count in corpus')
 tf.flags.DEFINE_integer('corpus_max_lines', 10000,
                         'How many lines of corpus to read')
@@ -54,29 +54,29 @@ FLAGS = tf.flags.FLAGS
 
 
 def main(unused_argv):
-  if FLAGS.corpus_filepattern and FLAGS.vocab_filepattern:
-    raise ValueError(
-        'Must only provide one of --corpus_filepattern or --vocab_filepattern')
+    if FLAGS.corpus_filepattern and FLAGS.vocab_filepattern:
+        raise ValueError(
+            'Must only provide one of --corpus_filepattern or --vocab_filepattern')
 
-  elif FLAGS.corpus_filepattern:
-    token_counts = tokenizer.corpus_token_counts(
-        FLAGS.corpus_filepattern,
-        FLAGS.corpus_max_lines,
-        split_on_newlines=FLAGS.split_on_newlines)
+    elif FLAGS.corpus_filepattern:
+        token_counts = tokenizer.corpus_token_counts(
+            FLAGS.corpus_filepattern,
+            FLAGS.corpus_max_lines,
+            split_on_newlines=FLAGS.split_on_newlines)
 
-  elif FLAGS.vocab_filepattern:
-    token_counts = tokenizer.vocab_token_counts(FLAGS.vocab_filepattern,
-                                                FLAGS.corpus_max_lines)
+    elif FLAGS.vocab_filepattern:
+        token_counts = tokenizer.vocab_token_counts(FLAGS.vocab_filepattern,
+                                                    FLAGS.corpus_max_lines)
 
-  else:
-    raise ValueError(
-        'Must provide one of --corpus_filepattern or --vocab_filepattern')
+    else:
+        raise ValueError(
+            'Must provide one of --corpus_filepattern or --vocab_filepattern')
 
-  encoder = text_encoder.SubwordTextEncoder()
-  encoder.build_from_token_counts(token_counts, FLAGS.min_count,
-                                  FLAGS.num_iterations)
-  encoder.store_to_file(FLAGS.output_filename)
+    encoder = text_encoder.SubwordTextEncoder()
+    encoder.build_from_token_counts(token_counts, FLAGS.min_count,
+                                    FLAGS.num_iterations)
+    encoder.store_to_file(FLAGS.output_filename)
 
 
 if __name__ == '__main__':
-  tf.app.run()
+    tf.app.run()

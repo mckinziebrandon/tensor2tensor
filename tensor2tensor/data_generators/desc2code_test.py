@@ -44,20 +44,19 @@ CODE_CPP_OUT = ("#include <iostream> void main() { /* Not this one */ int a = "
 
 
 class Desc2codeTest(tf.test.TestCase):
+    def testCppPreprocess(self):
+        """Check that the file correctly preprocess the code source."""
+        cpp_pb = desc2code.ProgrammingDesc2codeCpp()
 
-  def testCppPreprocess(self):
-    """Check that the file correctly preprocess the code source."""
-    cpp_pb = desc2code.ProgrammingDesc2codeCpp()
-
-    self.assertEqual(  # Add space beween two lines
-        cpp_pb.preprocess_target("firstline//comm1\nsecondline//comm2\n"),
-        "firstline secondline")
-    # Checking for boths comments and spaces
-    self.assertEqual(cpp_pb.preprocess_target(CODE_CPP_IN), CODE_CPP_OUT)
-    self.assertEqual(
-        cpp_pb.preprocess_target("  not removed //abcd  "),
-        "not removed //abcd")
+        self.assertEqual(  # Add space beween two lines
+            cpp_pb.preprocess_target("firstline//comm1\nsecondline//comm2\n"),
+            "firstline secondline")
+        # Checking for boths comments and spaces
+        self.assertEqual(cpp_pb.preprocess_target(CODE_CPP_IN), CODE_CPP_OUT)
+        self.assertEqual(
+            cpp_pb.preprocess_target("  not removed //abcd  "),
+            "not removed //abcd")
 
 
 if __name__ == "__main__":
-  tf.test.main()
+    tf.test.main()

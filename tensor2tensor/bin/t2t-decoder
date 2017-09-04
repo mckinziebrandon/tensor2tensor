@@ -55,36 +55,37 @@ flags.DEFINE_string("t2t_usr_dir", "",
 
 
 def main(_):
-  tf.logging.set_verbosity(tf.logging.INFO)
-  usr_dir.import_usr_dir(FLAGS.t2t_usr_dir)
-  trainer_utils.log_registry()
-  trainer_utils.validate_flags()
-  data_dir = os.path.expanduser(FLAGS.data_dir)
-  output_dir = os.path.expanduser(FLAGS.output_dir)
+    tf.logging.set_verbosity(tf.logging.INFO)
+    usr_dir.import_usr_dir(FLAGS.t2t_usr_dir)
+    trainer_utils.log_registry()
+    trainer_utils.validate_flags()
+    data_dir = os.path.expanduser(FLAGS.data_dir)
+    output_dir = os.path.expanduser(FLAGS.output_dir)
 
-  hparams = trainer_utils.create_hparams(
-      FLAGS.hparams_set, FLAGS.problems, data_dir, passed_hparams=FLAGS.hparams)
-  estimator, _ = trainer_utils.create_experiment_components(
-      hparams=hparams,
-      output_dir=output_dir,
-      data_dir=data_dir,
-      model_name=FLAGS.model)
+    hparams = trainer_utils.create_hparams(
+        FLAGS.hparams_set, FLAGS.problems, data_dir,
+        passed_hparams=FLAGS.hparams)
+    estimator, _ = trainer_utils.create_experiment_components(
+        hparams=hparams,
+        output_dir=output_dir,
+        data_dir=data_dir,
+        model_name=FLAGS.model)
 
-  if FLAGS.decode_interactive:
-    decoding.decode_interactively(estimator)
-  elif FLAGS.decode_from_file:
-    decoding.decode_from_file(estimator, FLAGS.decode_from_file)
-  else:
-    decoding.decode_from_dataset(
-        estimator,
-        FLAGS.problems.split("-"),
-        return_beams=FLAGS.decode_return_beams,
-        beam_size=FLAGS.decode_beam_size,
-        max_predictions=FLAGS.decode_num_samples,
-        decode_to_file=FLAGS.decode_to_file,
-        save_images=FLAGS.decode_save_images,
-        identity_output=FLAGS.identity_output)
+    if FLAGS.decode_interactive:
+        decoding.decode_interactively(estimator)
+    elif FLAGS.decode_from_file:
+        decoding.decode_from_file(estimator, FLAGS.decode_from_file)
+    else:
+        decoding.decode_from_dataset(
+            estimator,
+            FLAGS.problems.split("-"),
+            return_beams=FLAGS.decode_return_beams,
+            beam_size=FLAGS.decode_beam_size,
+            max_predictions=FLAGS.decode_num_samples,
+            decode_to_file=FLAGS.decode_to_file,
+            save_images=FLAGS.decode_save_images,
+            identity_output=FLAGS.identity_output)
 
 
 if __name__ == "__main__":
-  tf.app.run()
+    tf.app.run()

@@ -55,33 +55,33 @@ flags.DEFINE_bool("generate_data", False, "Generate data before training?")
 
 
 def main(_):
-  tf.logging.set_verbosity(tf.logging.INFO)
-  usr_dir.import_usr_dir(FLAGS.t2t_usr_dir)
-  trainer_utils.log_registry()
-  trainer_utils.validate_flags()
-  output_dir = os.path.expanduser(FLAGS.output_dir)
-  tmp_dir = os.path.expanduser(FLAGS.tmp_dir)
-  data_dir = os.path.expanduser(FLAGS.data_dir)
-  tf.gfile.MakeDirs(output_dir)
+    tf.logging.set_verbosity(tf.logging.INFO)
+    usr_dir.import_usr_dir(FLAGS.t2t_usr_dir)
+    trainer_utils.log_registry()
+    trainer_utils.validate_flags()
+    output_dir = os.path.expanduser(FLAGS.output_dir)
+    tmp_dir = os.path.expanduser(FLAGS.tmp_dir)
+    data_dir = os.path.expanduser(FLAGS.data_dir)
+    tf.gfile.MakeDirs(output_dir)
 
-  # Generate data if requested.
-  if FLAGS.generate_data:
-    tf.gfile.MakeDirs(data_dir)
-    tf.gfile.MakeDirs(tmp_dir)
-    for problem_name in FLAGS.problems.split("-"):
-      tf.logging.info("Generating data for %s" % problem_name)
-      problem = registry.problem(problem_name)
-      problem.generate_data(data_dir, tmp_dir)
+    # Generate data if requested.
+    if FLAGS.generate_data:
+        tf.gfile.MakeDirs(data_dir)
+        tf.gfile.MakeDirs(tmp_dir)
+        for problem_name in FLAGS.problems.split("-"):
+            tf.logging.info("Generating data for %s" % problem_name)
+            problem = registry.problem(problem_name)
+            problem.generate_data(data_dir, tmp_dir)
 
-  # Run the trainer.
-  trainer_utils.run(
-      data_dir=data_dir,
-      model=FLAGS.model,
-      output_dir=output_dir,
-      train_steps=FLAGS.train_steps,
-      eval_steps=FLAGS.eval_steps,
-      schedule=FLAGS.schedule)
+    # Run the trainer.
+    trainer_utils.run(
+        data_dir=data_dir,
+        model=FLAGS.model,
+        output_dir=output_dir,
+        train_steps=FLAGS.train_steps,
+        eval_steps=FLAGS.eval_steps,
+        schedule=FLAGS.schedule)
 
 
 if __name__ == "__main__":
-  tf.app.run()
+    tf.app.run()

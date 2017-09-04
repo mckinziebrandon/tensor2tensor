@@ -28,15 +28,15 @@ import tensorflow as tf
 
 
 def import_usr_dir(usr_dir):
-  """Import module at usr_dir, if provided."""
-  if not usr_dir:
-    return
-  dir_path = os.path.expanduser(usr_dir)
-  if dir_path[-1] == "/":
-    dir_path = dir_path[:-1]
-  containing_dir, module_name = os.path.split(dir_path)
-  tf.logging.info("Importing user module %s from path %s", module_name,
-                  containing_dir)
-  sys.path.insert(0, containing_dir)
-  importlib.import_module(module_name)
-  sys.path.pop(0)
+    """Import module at usr_dir, if provided."""
+    if not usr_dir:
+        return
+    dir_path = os.path.expanduser(usr_dir)
+    if dir_path[-1] == "/":
+        dir_path = dir_path[:-1]
+    containing_dir, module_name = os.path.split(dir_path)
+    tf.logging.info("Importing user module %s from path %s", module_name,
+                    containing_dir)
+    sys.path.insert(0, containing_dir)
+    importlib.import_module(module_name)
+    sys.path.pop(0)
