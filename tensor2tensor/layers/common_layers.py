@@ -185,6 +185,7 @@ def flatten4d3d(x):
     xshape = tf.shape(x)
     result = tf.reshape(x, [xshape[0], xshape[1] * xshape[2], xshape[3]])
     # Preserve static shapes when available.
+    # QUESTION: Doesn't tf.reshape take care of this?...
     xshape_static = x.get_shape()
     result.set_shape([xshape_static[0], None, xshape_static[3]])
     return result

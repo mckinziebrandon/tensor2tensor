@@ -49,25 +49,45 @@ def with_dropout(input, hparams):
     return tf.nn.dropout(input, 1.0 - hparams.layer_prepostprocess_dropout)
 
 
+def get_ignore_padding(inputs):
+    """
+    Args:
+        inputs: Tensor with shape [batch, memory_length, depth]
+    """
+    # Extract which individual embedding vectors are identically zero.
+    # encoder_padding has shape [batch, memory_length].
+    padding = comm_attn.embedding_to_padding(inputs)
+    # ignore_padding has shape [batch, 1, 1, memory_length].
+    # it also replaces all 1s in encoder_padding with -1e9 because idk.
+    ignore_padding = comm_attn.attention_bias_ignore_padding(padding)
+    return ignore_padding
+
+
 @registry.register_model
 class Transformer(t2t_model.T2TModel):
-    """Attention net.  See file docstring."""
+    """Attention net.  See file docstring.
+    
+    encoder: [Self-Attention, Feed-forward] x n
+    decoder: [Self-Attention, Source-Target-Attention, Feed-forward] x n
+    """
 
     def model_fn_body(self, features):
+        """
+        Args:
+            features: 4D tensor.
+        """
         hparams = self._hparams
-        targets = features['targets']
-        inputs = features['inputs']
-        target_space = features['target_space_id']
 
-        inputs = common_layers.flatten4d3d(inputs)
-        targets = common_layers.flatten4d3d(targets)
+        # Reshape (0, 1, 2, 3) => (0, 1 * 2, 3)
+        # QUESTION: why?
+        inputs = common_layers.flatten4d3d(features['inputs'])
+        targets = common_layers.flatten4d3d(features['targets'])
 
-        encoder = transformer_prepare_encoder(inputs, target_space, hparams)
+        encoder = transformer_prepare_encoder(
+            inputs, features['target_space_id'], hparams)
         decoder = transformer_prepare_decoder(targets, hparams)
-
         encoder_input = with_dropout(encoder.input, hparams)
         decoder_input = with_dropout(decoder.input, hparams)
-
         encoder_output = transformer_encoder(
             encoder_input, encoder.self_attn_bias, hparams)
         decoder_output = transformer_decoder(
@@ -112,7 +132,7 @@ def transformer_prepare_encoder(inputs, target_space, hparams):
     """Prepare one shard of the model for the encoder.
   
     Args:
-      inputs: a Tensor.
+      inputs: Tensor with shape [batch, memory_length, depth]
       target_space: a Tensor.
       hparams: run hyperparameters
   
@@ -123,33 +143,31 @@ def transformer_prepare_encoder(inputs, target_space, hparams):
         attention
     """
 
-    encoder_input = inputs
-    encoder_padding = comm_attn.embedding_to_padding(encoder_input)
-
-    ignore_padding = comm_attn.attention_bias_ignore_padding(
-        encoder_padding)
+    ignore_padding = get_ignore_padding(inputs)
     encoder_self_attention_bias = ignore_padding
-    encoder_decoder_attention_bias = ignore_padding
+
+    # Bias for self-attention to encourage attention to close positions.
     if hparams.proximity_bias:
         encoder_self_attention_bias += comm_attn.attention_bias_proximal(
-            tf.shape(inputs)[1])
+            length=tf.shape(inputs)[1])
 
     # Append target_space_id embedding to inputs.
     emb_target_space = common_layers.embedding(
-        target_space,
+        x=target_space,
         vocab_size=32,
         dense_size=inputs.shape.as_list[-1],
         name='target_space_embedding')
     emb_target_space = tf.reshape(emb_target_space, [1, 1, -1])
 
-    encoder_input += emb_target_space
+    # Question: wat
+    encoder_input = inputs + emb_target_space
     if hparams.pos == 'timing':
         encoder_input = comm_attn.add_timing_signal_1d(encoder_input)
 
     return EncoderState(
         input=encoder_input,
         self_attn_bias=encoder_self_attention_bias,
-        decoder_attn_bias=encoder_decoder_attention_bias)
+        decoder_attn_bias=ignore_padding)
 
 
 def transformer_prepare_decoder(targets, hparams):
@@ -196,19 +214,25 @@ def transformer_encoder(encoder_input,
     with tf.variable_scope(name):
         for layer in xrange(hparams.num_encoder_layers):
             with tf.variable_scope('layer_%d' % layer):
+
                 with tf.variable_scope('self_attention'):
                     y = comm_attn.multihead_attention(
-                        common_layers.layer_preprocess(
-                            x, hparams), None, encoder_self_attention_bias,
+                        common_layers.layer_preprocess(x, hparams),
+                        None,
+                        encoder_self_attention_bias,
                         hparams.attention_key_channels or hparams.hidden_size,
                         hparams.attention_value_channels or hparams.hidden_size,
-                        hparams.hidden_size, hparams.num_heads,
+                        hparams.hidden_size,
+                        hparams.num_heads,
                         hparams.attention_dropout)
+
                     x = common_layers.layer_postprocess(x, y, hparams)
+
                 with tf.variable_scope('ffn'):
                     y = transformer_ffn_layer(
                         common_layers.layer_preprocess(x, hparams), hparams)
                     x = common_layers.layer_postprocess(x, y, hparams)
+
     # if normalization is done in layer_preprocess, then it shuold also be done
     # on the output, since the output can grow very large, being the sum of
     # a whole stack of unnormalized layer outputs.

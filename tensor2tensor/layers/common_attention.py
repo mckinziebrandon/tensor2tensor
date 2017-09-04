@@ -46,7 +46,7 @@ def add_timing_signal_1d(x, min_timescale=1.0, max_timescale=1.0e4):
     The use of relative position is possible because sin(x+y) and cos(x+y) can be
     experessed in terms of y, sin(x) and cos(x).
   
-    In particular, we use a geometric sequence of timescales starting with
+    In particular, we use a geometric sequence of timescales starting wit
     min_timescale and ending with max_timescale.  The number of different
     timescales is equal to channels / 2. For each timescale, we
     generate the two sinusoidal signals sin(timestep/timescale) and
