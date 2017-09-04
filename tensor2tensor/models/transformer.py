@@ -33,7 +33,16 @@ from tensor2tensor.layers import common_layers
 from tensor2tensor.utils import registry
 from tensor2tensor.utils import t2t_model
 
+from collections import namedtuple
+
 import tensorflow as tf
+
+EncoderState = namedtuple(
+    'EncoderState',
+    ['input', 'self_attn_bias', 'decoder_attn_bias'])
+DecoderState = namedtuple(
+    'DecoderState',
+    ['input', 'self_attn_bias'])
 
 
 @registry.register_model
@@ -49,21 +58,18 @@ class Transformer(t2t_model.T2TModel):
         inputs = common_layers.flatten4d3d(inputs)
         targets = common_layers.flatten4d3d(targets)
 
-        (encoder_input, encoder_self_attention_bias,
-         encoder_decoder_attention_bias) = transformer_prepare_encoder(
-            inputs, target_space, hparams)
-        decoder_input, decoder_self_attention_bias = transformer_prepare_decoder(
-            targets, hparams)
+        encoder = transformer_prepare_encoder(inputs, target_space, hparams)
+        decoder = transformer_prepare_decoder(targets, hparams)
 
         encoder_input = tf.nn.dropout(
-            encoder_input, 1.0 - hparams.layer_prepostprocess_dropout)
+            encoder.input, 1.0 - hparams.layer_prepostprocess_dropout)
         decoder_input = tf.nn.dropout(
-            decoder_input, 1.0 - hparams.layer_prepostprocess_dropout)
+            decoder.input, 1.0 - hparams.layer_prepostprocess_dropout)
         encoder_output = transformer_encoder(
-            encoder_input, encoder_self_attention_bias, hparams)
+            encoder_input, encoder.self_attn_bias, hparams)
         decoder_output = transformer_decoder(
-            decoder_input, encoder_output, decoder_self_attention_bias,
-            encoder_decoder_attention_bias, hparams)
+            decoder_input, encoder_output, decoder.self_attn_bias,
+            encoder.decoder_attn_bias, hparams)
         decoder_output = tf.expand_dims(decoder_output, 2)
 
         return decoder_output
@@ -152,9 +158,13 @@ def transformer_prepare_encoder(inputs, target_space, hparams):
     if hparams.pos == "timing":
         encoder_input = common_attention.add_timing_signal_1d(encoder_input)
 
-    return encoder_input, \
-           encoder_self_attention_bias, \
-           encoder_decoder_attention_bias
+    return EncoderState(
+        input=encoder_input,
+        self_attn_bias=encoder_self_attention_bias,
+        decoder_attn_bias=encoder_decoder_attention_bias)
+    # return encoder_input, \
+    #        encoder_self_attention_bias, \
+    #        encoder_decoder_attention_bias
 
 
 def transformer_prepare_decoder(targets, hparams):
@@ -176,7 +186,10 @@ def transformer_prepare_decoder(targets, hparams):
     decoder_input = common_layers.shift_left_3d(targets)
     if hparams.pos == "timing":
         decoder_input = common_attention.add_timing_signal_1d(decoder_input)
-    return decoder_input, decoder_self_attention_bias
+    return DecoderState(
+        input=decoder_input,
+        self_attn_bias=decoder_self_attention_bias)
+    #return decoder_input, decoder_self_attention_bias
 
 
 def transformer_encoder(encoder_input,
