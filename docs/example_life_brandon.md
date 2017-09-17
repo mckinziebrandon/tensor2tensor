@@ -1,3 +1,11 @@
+# Data Generation
+
+1. Call `t2t-datagen`, specifying directories and the "problem" (essentially the name of the dataset).
+2. Main function called at the end of main is `generator_utils.generate_files`.
+    - Also, __explanation of shards__ from [dev himself](https://github.com/tensorflow/tensor2tensor/issues/190): "When we say shards in data generator (t2t-datagen) it just means that we split large files into a number of smaller files. It's usually better to not have gigabyte-sized files, and reading from multiple files can be faster, that's why we do it. And yes, you can use 1 shard for 100k sentences, though I think having 10 is still fine too."
+
+
+
 # What Happens When Run t2t-trainer
 
 Because they haven't written it yet.
